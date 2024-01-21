@@ -1,16 +1,18 @@
 package main
 
 import (
-	// "context"
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 
-	// "fmt"
+	"fmt"
 	"log"
 	"net/http"
 	"valentin-lvov/1x-parser/cache"
 	"valentin-lvov/1x-parser/queue"
+
+	// "valentin-lvov/1x-parser/scrapper"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -78,30 +80,37 @@ func resultsHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 func main() {
-	/*
-		// EXAMPLE OF JUST SCRAPPING PARTUCULAR PAGE
-		url := "https://1xbet.com/en/live/football/21317-africa-cup-of-nations/504058217-cape-verde-mozambique"
 
-		var result map[string]string
-		var ctx *context.Context
-		var err error
+	// EXAMPLE OF JUST SCRAPPING PARTUCULAR PAGE
+	// url := "https://1xbet.com/en/live/football/96463-germany-bundesliga/504601794-borussia-monchengladbach-augsburg"
 
-		ctx, cancel, err := scrapper.MakeConnectionAndLoad(url)
-		defer cancel()
+	// var result map[string]string
+	// var ctx *context.Context
+	// var err error
 
-		if err != nil {
-			log.Fatal("Error creating ChromeDP context:", err)
-			return
-		}
-		result, err = scrapper.GetContent(ctx, "div.bet-inner")
-		if err != nil {
-			log.Fatal("Error getting the content:", err)
-			return
-		}
+	// ctx, cancel, err := scrapper.MakeConnectionAndLoad(url)
+	// defer cancel()
 
-		fmt.Println(len(result))
-	*/
+	// if err != nil {
+	// 	log.Fatal("Error creating ChromeDP context:", err)
+	// 	return
+	// }
+	// result, err = scrapper.GetContentFromSelector(ctx, "div.bet-inner")
+	// if err != nil {
+	// 	log.Fatal("Error getting the content:", err)
+	// 	return
+	// }
+
+	// fmt.Println(len(result))
+
 	rdb = cache.NewRedisClient()
+	pong, err := rdb.Ping(context.Background()).Result()
+	if err != nil {
+		log.Fatalf("Failed to connect to Redis: %v", err)
+	}
+
+	fmt.Println(pong) // Output: PONG (if successful)
+
 	go queue.StartConsumer(rdb)
 
 	http.HandleFunc("/api/track", trackHandler)

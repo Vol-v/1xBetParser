@@ -3,6 +3,8 @@ package cache
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -17,13 +19,13 @@ func NewRedisClient() *redis.Client {
 	})
 }
 
-func StoreInRedis(rdb *redis.Client, key string, data map[string]string) error {
+func StoreInRedis(rdb *redis.Client, key string, data map[string]string, duration time.Duration) error {
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		return err
 	}
-
-	return rdb.Set(ctx, key, jsonData, 0).Err()
+	fmt.Printf("storing in redis...\n")
+	return rdb.Set(ctx, key, jsonData, duration).Err()
 }
 
 func RetrieveFromRedis(rdb *redis.Client, key string) (map[string]string, error) {

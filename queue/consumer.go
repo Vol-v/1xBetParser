@@ -2,6 +2,7 @@ package queue
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"time"
 	"valentin-lvov/1x-parser/scrapper"
@@ -40,6 +41,7 @@ func StartConsumer(client *redis.Client) error {
 	go func() {
 		for d := range msgs {
 			var task ScrapingTask
+			fmt.Printf("got message in queue!")
 			err := json.Unmarshal(d.Body, &task)
 			if err != nil {
 				log.Printf("Error decoding message: %s", err)
@@ -48,8 +50,7 @@ func StartConsumer(client *redis.Client) error {
 
 			log.Printf("Received a task: URL=%s, Duration=%d", task.URL, task.Duration)
 			// Trigger scraping based on the task details
-			go scrapper.TrackWebsite(task.URL, time.Duration(task.Duration), time.Duration(60), client)
-
+			go scrapper.TrackWebsite(task.URL, time.Second*time.Duration(task.Duration), time.Second*(60), client)
 		}
 	}()
 	log.Printf(" [*] Waiting for messages. To exit press CTRL+C")

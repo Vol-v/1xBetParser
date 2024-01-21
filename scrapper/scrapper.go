@@ -118,7 +118,7 @@ func GetContentFromSelector(ctx *context.Context, selector string) (map[string]s
 	if err != nil {
 		return nil, err
 	}
-
+	// fmt.Println("Div length:", len(divs))
 	spanTextMap := make(map[string]string)
 
 	for _, div := range divs {
@@ -133,6 +133,7 @@ func GetContentFromSelector(ctx *context.Context, selector string) (map[string]s
 		spanTextMap[span1Text] = span2Text
 	}
 
+	// fmt.Printf("Succesfully scrapped content!\n")
 	return spanTextMap, nil
 }
 func SaveToFile(filename, content string) error {
@@ -207,6 +208,7 @@ func TrackWebsite(url string, duration time.Duration, interval time.Duration, rd
 	var ctx *context.Context
 	var err error
 	var currentContent, previousContent *map[string]string
+	previousContent = &map[string]string{}
 
 	ctx, cancel, err := MakeConnectionAndLoad(url)
 	defer cancel()
@@ -223,8 +225,9 @@ func TrackWebsite(url string, duration time.Duration, interval time.Duration, rd
 			log.Fatal("Error getting the content:", err)
 			return err
 		}
+
 		if !AreMapsEqual(currentContent, previousContent) {
-			cache.StoreInRedis(rdb, url, *currentContent)
+			cache.StoreInRedis(rdb, url, *currentContent, duration)
 			previousContent = currentContent
 		}
 

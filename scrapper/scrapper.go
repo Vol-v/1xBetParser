@@ -104,7 +104,7 @@ func MakeConnectionAndLoad(url string) (*context.Context, context.CancelFunc, er
 
 }
 
-func GetContent(ctx *context.Context, selector string) (map[string]string, error) {
+func GetContentFromSelector(ctx *context.Context, selector string) (map[string]string, error) {
 	var divs []*cdp.Node
 	var span1Text, span2Text string
 
@@ -148,7 +148,7 @@ func SaveToFile(filename, content string) error {
 
 func CheckForUpdate(ctx *context.Context, curr_state map[string]string) (bool, error) {
 
-	updated_state, err := GetContent(ctx, "div.bet-inner")
+	updated_state, err := GetContentFromSelector(ctx, "div.bet-inner")
 
 	return AreMapsEqual(curr_state, updated_state), err
 }
@@ -164,4 +164,25 @@ func AreMapsEqual(map1, map2 map[string]string) bool {
 		}
 	}
 	return true
+}
+
+func ScrapWebsite(url string) (map[string]string, error) {
+
+	var result map[string]string
+	var ctx *context.Context
+	var err error
+
+	ctx, cancel, err := MakeConnectionAndLoad(url)
+	defer cancel()
+
+	if err != nil {
+		log.Fatal("Error creating ChromeDP context:", err)
+		return nil, err
+	}
+	result, err = GetContentFromSelector(ctx, "div.bet-inner")
+	if err != nil {
+		log.Fatal("Error getting the content:", err)
+		return nil, err
+	}
+	return result, nil
 }

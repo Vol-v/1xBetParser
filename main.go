@@ -2,20 +2,25 @@ package main
 
 import (
 	// "context"
-	// "fmt"
-	// "log"
-	// "valentin-lvov/1x-parser/scrapper"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+
+	// "fmt"
 	"log"
 	"net/http"
+	"valentin-lvov/1x-parser/cache"
+	"valentin-lvov/1x-parser/queue"
+
+	"github.com/redis/go-redis/v9"
 )
 
 type TrackRequest struct {
 	URL      string `json:"url"`
 	Duration int    `json:"duration"`
 }
+
+var rdb *redis.Client
 
 func GenerateSecureToken(length int) string {
 	b := make([]byte, length)
@@ -36,34 +41,38 @@ func trackHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	token := GenerateSecureToken(20)
-	// TODO: add rabbitMQ integration
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"token": token})
+
+	err = queue.PublishTrackingTask(request.URL, request.Duration)
+
+	// w.Header().Set("Content-Type", "application/json")
+	// json.NewEncoder(w).Encode(map[string]string{"token": token})
+	// token := GenerateSecureToken(20)
+
+	w.WriteHeader(http.StatusOK)
 }
 
 func resultsHandler(w http.ResponseWriter, r *http.Request) {
-	/*endpoint looks like this: http://example.com/api/results?token=12345*/
+	/*endpoint looks like this: http://example.com/api/results?url=12345*/
 	if r.Method != "GET" {
 		http.Error(w, "Only GET requests on this endpoint", http.StatusMethodNotAllowed)
 		return
 	}
 
-	var token string
+	var url string
 	var results map[string]string
-	token = r.URL.Query().Get("token")
+	url = r.URL.Query().Get("url")
 
-	if token == "" {
-		http.Error(w, "Token is required", http.StatusBadRequest)
+	if url == "" {
+		http.Error(w, "url is required", http.StatusBadRequest)
 		return
 	}
 
 	// TODO: Retrieve tracking results from the database or cache
-	// results, err := getTrackingResults(token)
-	// if err != nil {
-	//     http.Error(w, err.Error(), http.StatusInternalServerError)
-	//     return
-	// }
+	results, err := cache.RetrieveFromRedis(rdb, url)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]map[string]string{"data": results}) // Replace "results" with actual data
 
@@ -92,6 +101,8 @@ func main() {
 
 		fmt.Println(len(result))
 	*/
+	rdb = cache.NewRedisClient()
+	go queue.StartConsumer(rdb)
 
 	http.HandleFunc("/api/track", trackHandler)
 	http.HandleFunc("/api/results", resultsHandler)

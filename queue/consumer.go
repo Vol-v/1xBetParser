@@ -3,7 +3,7 @@ package queue
 import (
 	"encoding/json"
 	"log"
-	"valentin-lvov/1x-parser/cache"
+	"time"
 	"valentin-lvov/1x-parser/scrapper"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -48,8 +48,7 @@ func StartConsumer(client *redis.Client) error {
 
 			log.Printf("Received a task: URL=%s, Duration=%d", task.URL, task.Duration)
 			// Trigger scraping based on the task details
-			data, err := scrapper.ScrapWebsite(task.URL)
-			cache.StoreInRedis(client, task.URL, data)
+			go scrapper.TrackWebsite(task.URL, time.Duration(task.Duration), time.Duration(60), client)
 
 		}
 	}()

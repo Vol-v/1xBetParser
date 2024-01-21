@@ -6,9 +6,11 @@ import (
 	"log"
 	"os"
 	"time"
+	"valentin-lvov/1x-parser/cache"
 
 	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/chromedp"
+	"github.com/redis/go-redis/v9"
 )
 
 func MakeConnectionAndLoad(url string) (*context.Context, context.CancelFunc, error) {
@@ -20,6 +22,7 @@ func MakeConnectionAndLoad(url string) (*context.Context, context.CancelFunc, er
 		// chromedp.Sleep(10*time.Second),
 		chromedp.WaitVisible(`div#allBetsTable`, chromedp.ByQuery),
 		chromedp.ActionFunc(func(ctx context.Context) error {
+			/*click on all collapsed headers in the table to load the necessary data*/
 			var err error
 			script_click_collapsed := `
                 var elements = document.querySelectorAll('div.bet-title.bet-title_justify.min');
@@ -38,6 +41,7 @@ func MakeConnectionAndLoad(url string) (*context.Context, context.CancelFunc, er
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			// selector := "div.bets_content.betsscroll > div.iScrollVerticalScrollbar.iScrollLoneScrollbar > div.iScrollIndicator" // CSS selector for the element
 			selector := "div#allBetsTable"
+			/*call wheel event to scroll the table and load more content until there is no more content appears*/
 			script_scroll := `
 						var event = new WheelEvent('wheel', {
 							deltaX: 0,
@@ -58,7 +62,7 @@ func MakeConnectionAndLoad(url string) (*context.Context, context.CancelFunc, er
 				}
 
 				fmt.Println(prevstyle)
-
+				//this next part can be removed, it is just a log basically to see that scrolling bets table changed anything
 				err = chromedp.Evaluate(`document.querySelectorAll('div.bet-inner').length`, &betcount).Do(ctx)
 				if err != nil {
 					return err
@@ -146,14 +150,16 @@ func SaveToFile(filename, content string) error {
 	return nil
 }
 
-func CheckForUpdate(ctx *context.Context, curr_state map[string]string) (bool, error) {
+// func CheckForUpdate(ctx *context.Context, curr_state map[string]string) (bool, error) {
 
-	updated_state, err := GetContentFromSelector(ctx, "div.bet-inner")
+// 	updated_state, err := GetContentFromSelector(ctx, "div.bet-inner")
 
-	return AreMapsEqual(curr_state, updated_state), err
-}
+// 	return AreMapsEqual(curr_state, updated_state), err
+// }
 
-func AreMapsEqual(map1, map2 map[string]string) bool {
+func AreMapsEqual(map_p1, map_p2 *map[string]string) bool {
+	map1 := *map_p1
+	map2 := *map_p2
 	if len(map1) != len(map2) {
 		return false
 	}
@@ -164,6 +170,16 @@ func AreMapsEqual(map1, map2 map[string]string) bool {
 		}
 	}
 	return true
+}
+
+func copyMap(map1, map2 *map[string]string) {
+	mp1 := *map1
+	mp2 := *map2
+	for k, v := range mp1 {
+		mp2[k] = v
+	}
+	return
+
 }
 
 func ScrapWebsite(url string) (map[string]string, error) {
@@ -185,4 +201,33 @@ func ScrapWebsite(url string) (map[string]string, error) {
 		return nil, err
 	}
 	return result, nil
+}
+
+func TrackWebsite(url string, duration time.Duration, interval time.Duration, rdb *redis.Client) error {
+	var ctx *context.Context
+	var err error
+	var currentContent, previousContent *map[string]string
+
+	ctx, cancel, err := MakeConnectionAndLoad(url)
+	defer cancel()
+	if err != nil {
+		log.Fatal("Error creating ChromeDP context:", err)
+		return err
+	}
+
+	endTime := time.Now().Add(duration)
+	for time.Now().Before(endTime) {
+		res, err := GetContentFromSelector(ctx, "div.bet-inner")
+		currentContent = &res
+		if err != nil {
+			log.Fatal("Error getting the content:", err)
+			return err
+		}
+		if !AreMapsEqual(currentContent, previousContent) {
+			cache.StoreInRedis(rdb, url, *currentContent)
+			previousContent = currentContent
+		}
+
+	}
+	return nil
 }

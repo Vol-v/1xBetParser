@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 
 	"fmt"
@@ -11,8 +9,6 @@ import (
 	"net/http"
 	"valentin-lvov/1x-parser/cache"
 	"valentin-lvov/1x-parser/queue"
-
-	// "valentin-lvov/1x-parser/scrapper"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -23,14 +19,6 @@ type TrackRequest struct {
 }
 
 var rdb *redis.Client
-
-func GenerateSecureToken(length int) string {
-	b := make([]byte, length)
-	if _, err := rand.Read(b); err != nil {
-		return ""
-	}
-	return hex.EncodeToString(b)
-}
 
 func trackHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
@@ -54,7 +42,7 @@ func trackHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func resultsHandler(w http.ResponseWriter, r *http.Request) {
-	/*endpoint looks like this: http://example.com/api/results?url=12345*/
+	/*endpoint looks like this: http://example.com/api/results?url=ex.com*/
 	if r.Method != "GET" {
 		http.Error(w, "Only GET requests on this endpoint", http.StatusMethodNotAllowed)
 		return
@@ -65,18 +53,17 @@ func resultsHandler(w http.ResponseWriter, r *http.Request) {
 	url = r.URL.Query().Get("url")
 
 	if url == "" {
-		http.Error(w, "url is required", http.StatusBadRequest)
+		http.Error(w, "URL is required", http.StatusBadRequest)
 		return
 	}
 
-	// TODO: Retrieve tracking results from the database or cache
 	results, err := cache.RetrieveFromRedis(rdb, url)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]map[string]string{"data": results}) // Replace "results" with actual data
+	json.NewEncoder(w).Encode(map[string]map[string]string{"data": results})
 
 }
 func main() {
@@ -119,3 +106,13 @@ func main() {
 	log.Println("Server is running on port 8080...")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
+
+/*
+func GenerateSecureToken(length int) string { // currently not necessary
+	b := make([]byte, length)
+	if _, err := rand.Read(b); err != nil {
+		return ""
+	}
+	return hex.EncodeToString(b)
+}
+*/

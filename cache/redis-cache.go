@@ -20,6 +20,7 @@ func NewRedisClient() *redis.Client {
 }
 
 func StoreInRedis(rdb *redis.Client, key string, data map[string]string, duration time.Duration) error {
+	/*I am storing data with set because when I retrieve I need to get all {bet_name : coefficient} pairs*/
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		return err

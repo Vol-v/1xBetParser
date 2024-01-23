@@ -39,7 +39,7 @@ func MakeConnectionAndLoad(url string) (*context.Context, context.CancelFunc, er
 
 		}),
 		chromedp.ActionFunc(func(ctx context.Context) error {
-			// selector := "div.bets_content.betsscroll > div.iScrollVerticalScrollbar.iScrollLoneScrollbar > div.iScrollIndicator" // CSS selector for the element
+			// selector := "div.bets_content.betsscroll > div.iScrollVerticalScrollbar.iScrollLoneScrollbar > div.iScrollIndicator" // scroll bar elelemt, might need later
 			selector := "div#allBetsTable"
 			/*call wheel event to scroll the table and load more content until there is no more content appears*/
 			script_scroll := `
@@ -55,7 +55,7 @@ func MakeConnectionAndLoad(url string) (*context.Context, context.CancelFunc, er
 			var betcount int
 
 			for {
-				// Get the current scroll position of the element
+				// Data about table size is kept inside table.style.transform
 				err := chromedp.Evaluate(`document.querySelector('`+selector+`').style.transform`, &prevstyle).Do(ctx)
 				if err != nil {
 					return err
@@ -108,9 +108,11 @@ func MakeConnectionAndLoad(url string) (*context.Context, context.CancelFunc, er
 
 }
 
-func GetContentFromSelector(ctx *context.Context, selector string) (map[string]string, error) {
+func GetContentFromSelector(ctx *context.Context) (map[string]string, error) {
+	/* bet name and coefficient is currently kept inside div.bet-inner as text*/
 	var divs []*cdp.Node
 	var span1Text, span2Text string
+	selector := "div.bet-inner"
 
 	err := chromedp.Run(*ctx,
 		chromedp.Nodes(selector, &divs, chromedp.ByQueryAll),
@@ -118,7 +120,6 @@ func GetContentFromSelector(ctx *context.Context, selector string) (map[string]s
 	if err != nil {
 		return nil, err
 	}
-	// fmt.Println("Div length:", len(divs))
 	spanTextMap := make(map[string]string)
 
 	for _, div := range divs {
@@ -150,13 +151,6 @@ func SaveToFile(filename, content string) error {
 
 	return nil
 }
-
-// func CheckForUpdate(ctx *context.Context, curr_state map[string]string) (bool, error) {
-
-// 	updated_state, err := GetContentFromSelector(ctx, "div.bet-inner")
-
-// 	return AreMapsEqual(curr_state, updated_state), err
-// }
 
 func AreMapsEqual(map_p1, map_p2 *map[string]string) bool {
 	map1 := *map_p1
@@ -196,7 +190,7 @@ func ScrapWebsite(url string) (map[string]string, error) {
 		log.Fatal("Error creating ChromeDP context:", err)
 		return nil, err
 	}
-	result, err = GetContentFromSelector(ctx, "div.bet-inner")
+	result, err = GetContentFromSelector(ctx)
 	if err != nil {
 		log.Fatal("Error getting the content:", err)
 		return nil, err
@@ -205,12 +199,13 @@ func ScrapWebsite(url string) (map[string]string, error) {
 }
 
 func TrackWebsite(url string, duration time.Duration, interval time.Duration, rdb *redis.Client) error {
+	/*track url for duration. Check the website every inetrval and store it in redis db rdb*/
 	var ctx *context.Context
 	var err error
 	var currentContent, previousContent *map[string]string
 	previousContent = &map[string]string{}
 
-	ctx, cancel, err := MakeConnectionAndLoad(url)
+	ctx, cancel, err := MakeConnectionAndLoad(url) // load website inside headless chrome browser
 	defer cancel()
 	if err != nil {
 		log.Fatal("Error creating ChromeDP context:", err)
@@ -219,14 +214,15 @@ func TrackWebsite(url string, duration time.Duration, interval time.Duration, rd
 
 	endTime := time.Now().Add(duration)
 	for time.Now().Before(endTime) {
-		res, err := GetContentFromSelector(ctx, "div.bet-inner")
+		res, err := GetContentFromSelector(ctx)
 		currentContent = &res
 		if err != nil {
 			log.Fatal("Error getting the content:", err)
 			return err
 		}
 
-		if !AreMapsEqual(currentContent, previousContent) {
+		if !AreMapsEqual(currentContent, previousContent) { // could replace this with just cache.StoreInRedis to not keep extra copy here
+			// but this will obviously increase the number of cache accesses
 			cache.StoreInRedis(rdb, url, *currentContent, duration)
 			previousContent = currentContent
 		}

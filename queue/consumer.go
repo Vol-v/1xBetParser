@@ -11,10 +11,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-func StartConsumer(client *redis.Client, conn *amqp.Connection, ch *amqp.Channel) error {
-
-	defer conn.Close()
-	defer ch.Close()
+func StartConsumer(client *redis.Client, ch *amqp.Channel) error {
 
 	q, err := ch.QueueDeclare("parse-1xbet-queue", false, false, false, false, nil)
 	if err != nil {
@@ -40,7 +37,7 @@ func StartConsumer(client *redis.Client, conn *amqp.Connection, ch *amqp.Channel
 
 			log.Printf("Received a task: URL=%s, Duration=%d", task.URL, task.Duration)
 			// Trigger scraping based on the task details
-			go scrapper.TrackWebsite(task.URL, time.Second*time.Duration(task.Duration), time.Second*(5), client)
+			go scrapper.TrackWebsite(task.URL, time.Second*time.Duration(task.Duration), time.Second*(10), client)
 		}
 	}()
 	log.Printf(" [*] Waiting for messages. To exit press CTRL+C")

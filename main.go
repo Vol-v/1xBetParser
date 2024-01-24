@@ -115,9 +115,11 @@ func main() {
 		log.Fatalf("Failed to connect consumer to RabbitMQ: %v", err)
 	}
 	defer connection_producer.Close()
+	defer connection_consumer.Close()
 	defer channel_produce.Close()
+	defer channel_consume.Close()
 
-	go queue.StartConsumer(rdb, connection_consumer, channel_consume)
+	go queue.StartConsumer(rdb, channel_consume)
 
 	http.HandleFunc("/api/track", trackHandler)
 	http.HandleFunc("/api/results", resultsHandler)

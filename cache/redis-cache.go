@@ -25,7 +25,7 @@ func StoreInRedis(rdb *redis.Client, key string, data map[string]string, duratio
 	if err != nil {
 		return err
 	}
-	fmt.Printf("storing in redis...\n")
+	fmt.Printf("storing in redis...")
 	return rdb.Set(ctx, key, jsonData, duration).Err()
 }
 

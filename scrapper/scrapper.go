@@ -202,8 +202,9 @@ func TrackWebsite(url string, duration time.Duration, interval time.Duration, rd
 	/*track url for duration. Check the website every inetrval and store it in redis db rdb*/
 	var ctx *context.Context
 	var err error
-	var currentContent, previousContent *map[string]string
-	previousContent = &map[string]string{}
+	var currentContent *map[string]string
+	// var previousContent *map[string]string
+	// previousContent = &map[string]string{}
 
 	ctx, cancel, err := MakeConnectionAndLoad(url) // load website inside headless chrome browser
 	defer cancel()
@@ -220,12 +221,13 @@ func TrackWebsite(url string, duration time.Duration, interval time.Duration, rd
 			log.Fatal("Error getting the content:", err)
 			return err
 		}
+		cache.StoreInRedis(rdb, url, *currentContent, duration)
 
-		if !AreMapsEqual(currentContent, previousContent) { // could replace this with just cache.StoreInRedis to not keep extra copy here
-			// but this will obviously increase the number of cache accesses
-			cache.StoreInRedis(rdb, url, *currentContent, duration)
-			previousContent = currentContent
-		}
+		// if !AreMapsEqual(currentContent, previousContent) { // could replace this with just cache.StoreInRedis to not keep extra copy here
+		// 	// but this will obviously increase the number of cache accesses
+		// 	cache.StoreInRedis(rdb, url, *currentContent, duration)
+		// 	previousContent = currentContent
+		// }
 
 	}
 	return nil

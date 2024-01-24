@@ -9,28 +9,18 @@ import (
 
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/redis/go-redis/v9"
-	// scrap "valentin-lvov/1x-parser/scrapper"
 )
 
-func StartConsumer(client *redis.Client) error {
-	// ... connection and channel setup ...
+func StartConsumer(client *redis.Client, conn *amqp.Connection, ch *amqp.Channel) error {
 
-	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
-	if err != nil {
-		return err
-	}
 	defer conn.Close()
-
-	ch, err := conn.Channel()
-	if err != nil {
-		return err
-	}
 	defer ch.Close()
 
-	q, err := ch.QueueDeclare("scrapeQueue", false, false, false, false, nil)
+	q, err := ch.QueueDeclare("parse-1xbet-queue", false, false, false, false, nil)
 	if err != nil {
 		return err
 	}
+	err = ch.QueueBind(q.Name, "service.parse.1xbet", "service.parse", false, nil)
 
 	msgs, err := ch.Consume(q.Name, "", true, false, false, false, nil)
 	if err != nil {
@@ -41,7 +31,7 @@ func StartConsumer(client *redis.Client) error {
 	go func() {
 		for d := range msgs {
 			var task ScrapingTask
-			fmt.Printf("got message in queue!")
+			fmt.Printf("got message in queue!\n")
 			err := json.Unmarshal(d.Body, &task)
 			if err != nil {
 				log.Printf("Error decoding message: %s", err)
@@ -50,7 +40,7 @@ func StartConsumer(client *redis.Client) error {
 
 			log.Printf("Received a task: URL=%s, Duration=%d", task.URL, task.Duration)
 			// Trigger scraping based on the task details
-			go scrapper.TrackWebsite(task.URL, time.Second*time.Duration(task.Duration), time.Second*(60), client)
+			go scrapper.TrackWebsite(task.URL, time.Second*time.Duration(task.Duration), time.Second*(5), client)
 		}
 	}()
 	log.Printf(" [*] Waiting for messages. To exit press CTRL+C")

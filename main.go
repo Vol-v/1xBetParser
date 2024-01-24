@@ -10,6 +10,7 @@ import (
 	"valentin-lvov/1x-parser/cache"
 	"valentin-lvov/1x-parser/queue"
 
+	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -19,6 +20,8 @@ type TrackRequest struct {
 }
 
 var rdb *redis.Client
+var channel_produce, channel_consume *amqp.Channel
+var connection_producer, connection_consumer *amqp.Connection
 
 func trackHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
@@ -32,7 +35,11 @@ func trackHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = queue.PublishTrackingTask(request.URL, request.Duration)
+	err = queue.PublishTrackingTask(request.URL, request.Duration, channel_produce)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	// w.Header().Set("Content-Type", "application/json")
 	// json.NewEncoder(w).Encode(map[string]string{"token": token})
@@ -98,11 +105,22 @@ func main() {
 
 	fmt.Println(pong) // Output: PONG (if successful)
 
-	go queue.StartConsumer(rdb)
+	connection_producer, channel_produce, err = queue.ConnectToRabbitMQ("amqp://guest:guest@localhost:5672/")
+	if err != nil {
+		log.Fatalf("Failed to connect producer to RabbitMQ: %v", err)
+	}
+
+	connection_consumer, channel_consume, err = queue.ConnectToRabbitMQ("amqp://guest:guest@localhost:5672/")
+	if err != nil {
+		log.Fatalf("Failed to connect consumer to RabbitMQ: %v", err)
+	}
+	defer connection_producer.Close()
+	defer channel_produce.Close()
+
+	go queue.StartConsumer(rdb, connection_consumer, channel_consume)
 
 	http.HandleFunc("/api/track", trackHandler)
 	http.HandleFunc("/api/results", resultsHandler)
-
 	log.Println("Server is running on port 8080...")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }

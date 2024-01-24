@@ -15,24 +15,37 @@ type ScrapingTask struct {
 	Duration int    `json:"duration"`
 }
 
-func PublishTrackingTask(url string, duration int) error {
-	// TODO: make connection to uri from config
-	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
+func ConnectToRabbitMQ(uri string) (*amqp.Connection, *amqp.Channel, error) {
+	//TODO: make connection to uri from config
+	conn, err := amqp.Dial(uri)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
-	defer conn.Close()
 
 	ch, err := conn.Channel()
 	if err != nil {
-		return err
+		conn.Close()
+		return nil, nil, err
 	}
-	defer ch.Close()
-
-	q, err := ch.QueueDeclare("scrapeQueue", false, false, false, false, nil)
+	err = ch.ExchangeDeclare(
+		"service.parse", // Exchange name
+		"direct",        // Type of the exchange
+		true,            // Durable
+		false,           // Auto-deleted
+		false,           // Internal
+		false,           // No-wait
+		nil,             // Arguments
+	)
 	if err != nil {
-		return err
+		ch.Close()
+		conn.Close()
+		return nil, nil, err
 	}
+	return conn, ch, nil
+}
+
+func PublishTrackingTask(url string, duration int, ch *amqp.Channel) error {
+	// TODO: make connection to uri from config
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
 
@@ -48,7 +61,7 @@ func PublishTrackingTask(url string, duration int) error {
 		return err
 	}
 
-	err = ch.PublishWithContext(ctx, "", q.Name, false, false, amqp.Publishing{
+	err = ch.PublishWithContext(ctx, "service.parse", "service.parse.1xbet", false, false, amqp.Publishing{
 		ContentType: "application/json",
 		Body:        []byte(body),
 	})
